@@ -2,6 +2,8 @@ module AutoDiff
 
 using LinearAlgebra
 
+__precompile__(false)
+
 # Ładujemy podmoduły
 include("models.jl")
 include("operators.jl")
