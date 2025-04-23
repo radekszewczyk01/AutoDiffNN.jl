@@ -19,22 +19,23 @@ const MF = myExample.MiniFlux
     expected_y = sin(25.0)
     expected_grad = 2 * 5.0 * cos(25.0)
 
+    #sprawdzenie wyliczonych pochodnych z oczekiwanymi
     @test isapprox(y_val, expected_y; atol=1e-10)
     @test isapprox(x.gradient, expected_grad; atol=1e-10)
 end
 
-include("iris.jl")  # Załaduj dane z pliku
+include("iris.jl")  
 
 @testset "MiniFlux training test (Iris)" begin
+
     # Tworzymy sieć: wejście 4 -> wyjście 3 (bo mamy 3 klasy), bez aktywacji
     layer = MF.Dense(4, 3, identity; bias=true)
     params = [layer.W, layer.b]
     model = MF.Model([layer], params)
 
-    # Konwertujemy dane wejściowe i etykiety do formatu listy przykładów
     iris_data = [(vec(inputs[i, :]), vec(targets[i, :])) for i in 1:size(inputs, 1)]
 
-    # Obliczamy stratę przed treningiem dla pierwszego przykładu
+    # strata przed treningiem
     x_before = AD.Variable(vec(inputs[1, :]), name="x")
     y_true   = AD.Variable(vec(targets[1, :]), name="y")
     ŷ_before = model(x_before)
@@ -42,10 +43,10 @@ include("iris.jl")  # Załaduj dane z pliku
     graph_before = AD.topological_sort(loss_before)
     initial_loss = AD.forward!(graph_before)
 
-    # Wykonujemy jedną epokę treningową z niewielkim lr
+    # 1 epoka z malym lr
     MF.train!(model, MF.mse_loss, iris_data, MF.sgd!, 1; lr=0.001)
 
-    # Obliczamy stratę po treningu dla tego samego przykładu
+    # strata po treningu
     x_after = AD.Variable(vec(inputs[1, :]), name="x")
     y_true_after   = AD.Variable(vec(targets[1, :]), name="y")
     ŷ_after = model(x_after)
@@ -56,18 +57,20 @@ include("iris.jl")  # Załaduj dane z pliku
     println("Initial loss: ", initial_loss)
     println("New loss after training: ", new_loss)
 
-    @test new_loss < initial_loss # Sprawdzamy, czy strata się zmniejszyła
+    @test new_loss < initial_loss 
 end
 
 function accuracy(model, data)
     correct = 0
     for (x_val, y_val) in data
+
         # forward dla predykcji
         x_var = AD.Variable(x_val, name="x")
         y_pred_var = model(x_var)
-        # wyciągamy surowe wyjście
+        
         y_out = AD.forward!(AD.topological_sort(y_pred_var))
-        # decyzja klasy = argmax
+
+        # decyzja klasy
         pred = argmax(y_out)
         truth = argmax(y_val)
         correct += (pred == truth)
@@ -77,10 +80,9 @@ end
 
 @testset "MiniFlux Iris – train/test split" begin
     include("iris.jl")
-    # przygotuj listę przykładów
+
     iris_data = [(vec(inputs[i, :]), vec(targets[i, :])) for i in 1:size(inputs,1)]
 
-    # ustal ziarno i wymieszaj
     Random.seed!(42)
     shuffle!(iris_data)
 
@@ -94,16 +96,16 @@ end
     layer = MF.Dense(4, 3, identity; bias=true)
     model = MF.Model([layer], [layer.W, layer.b])
 
-    # trenuj na train_data
+    # trenowanie
     MF.train!(model, MF.mse_loss, train_data, MF.sgd!, 10; lr=0.01)
 
-    # oblicz accuracy
+    # accuracy
     acc_train = accuracy(model, train_data)
     acc_test  = accuracy(model, test_data)
 
     println("Accuracy on training set: ", round(acc_train*100, digits=2), "%")
     println("Accuracy on  test   set: ", round(acc_test*100,  digits=2), "%")
 
-    @test acc_train > 0.5    # oczekujemy co najmniej 80% na train
-    @test acc_test  > 0.5    # i np. min. 70% na test
+    @test acc_train > 0.7    
+    @test acc_test  > 0.6   
 end
