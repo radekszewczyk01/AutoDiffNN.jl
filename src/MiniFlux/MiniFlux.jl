@@ -10,7 +10,7 @@ include("losses.jl")
 include("optimizers.jl")
 include("training.jl")
 
-export Dense, mse_loss, sgd!, train!, Model, σ, relu, tanh
+export Dense, mse_loss, sgd!, train!, Model, relu, swish, linear
 
 struct Model
     layers::Vector

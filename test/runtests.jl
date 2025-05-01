@@ -93,7 +93,7 @@ end
     test_data  = iris_data[n_train+1:end]
 
     # budowa modelu
-    layer = MF.Dense(4, 3, identity; bias=true)
+    layer = MF.Dense(4, 3, AD.linear; bias=true)
     model = MF.Model([layer], [layer.W, layer.b])
 
     # trenowanie

@@ -91,3 +91,26 @@ backward(node::BroadcastedOperator{typeof(σ)}, x, g) = let
     J = diagm(y .* (1.0 .- y))
     tuple(J' * g)
 end
+
+# Linear — funkcja tożsamości
+linear(x) = BroadcastedOperator(linear, x)
+forward(::BroadcastedOperator{typeof(linear)}, x) = x
+backward(::BroadcastedOperator{typeof(linear)}, x, g) = tuple(diagm(ones(length(x)))' * g)
+
+# ReLU — max(x, 0)
+relu(x) = BroadcastedOperator(relu, x)
+forward(::BroadcastedOperator{typeof(relu)}, x) = max.(x, 0.0)
+backward(node::BroadcastedOperator{typeof(relu)}, x, g) = begin
+    J = diagm(x .> 0.0)  # 1 dla x>0, 0 dla x<=0
+    tuple(J' * g)
+end
+
+# Swish — x / (1 + exp(-x))
+swish(x) = BroadcastedOperator(swish, x)
+forward(::BroadcastedOperator{typeof(swish)}, x) = x ./ (1 .+ exp.(-x))
+backward(node::BroadcastedOperator{typeof(swish)}, x, g) = begin
+    σ = 1.0 ./ (1 .+ exp.(-x))
+    y = node.output
+    J = diagm(σ .+ x .* σ .* (1 .- σ))  # swish' = σ + x * σ * (1 - σ)
+    tuple(J' * g)
+end
