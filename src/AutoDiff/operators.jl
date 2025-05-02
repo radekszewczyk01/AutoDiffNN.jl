@@ -2,22 +2,18 @@ import Base: ^, sin, *, sum, max
 import LinearAlgebra: mul!
 import Base.Broadcast: broadcasted
 
-# Elementarny potęgowy operator
 ^(x::GraphNode, n::GraphNode) = ScalarOperator(^, x, n)
 forward(::ScalarOperator{typeof(^)}, x, n) = return x^n
 backward(::ScalarOperator{typeof(^)}, x, n, g) = tuple(g * n * x ^ (n-1), g * log(abs(x)) * x ^ n)
 
-# Sinus
 sin(x::GraphNode) = ScalarOperator(sin, x)
 forward(::ScalarOperator{typeof(sin)}, x) = return sin(x)
 backward(::ScalarOperator{typeof(sin)}, x, g) = tuple(g * cos(x))
 
-# Macierzowe mnożenie (A * x)
 *(A::GraphNode, x::GraphNode) = BroadcastedOperator(mul!, A, x)
 forward(::BroadcastedOperator{typeof(mul!)}, A, x) = A * x
 backward(::BroadcastedOperator{typeof(mul!)}, A, x, g) = tuple(g * x', A' * g)
 
-# Broadcast: elementwise operators
 broadcasted(*, x::GraphNode, y::GraphNode) = BroadcastedOperator(*, x, y)
 forward(::BroadcastedOperator{typeof(*)}, x, y) = x .* y
 backward(node::BroadcastedOperator{typeof(*)}, x, y, g) = let
