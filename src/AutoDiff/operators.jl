@@ -65,7 +65,6 @@ broadcasted(log, x::GraphNode) = BroadcastedOperator(log, x)
 forward(::BroadcastedOperator{typeof(log)}, x) = log.(x)
 backward(::BroadcastedOperator{typeof(log)}, x, g) = tuple(diagm(1.0 ./ x)' * g)
 
-# sum
 sum(x::GraphNode) = BroadcastedOperator(sum, x)
 forward(::BroadcastedOperator{typeof(sum)}, x) = sum(x)
 backward(::BroadcastedOperator{typeof(sum)}, x, g) = let
@@ -74,7 +73,6 @@ backward(::BroadcastedOperator{typeof(sum)}, x, g) = let
     tuple(J' * g)
 end
 
-# max
 broadcasted(max, x::GraphNode, y::GraphNode) = BroadcastedOperator(max, x, y)
 forward(::BroadcastedOperator{typeof(max)}, x, y) = max.(x, y)
 backward(::BroadcastedOperator{typeof(max)}, x, y, g) = let
@@ -83,7 +81,6 @@ backward(::BroadcastedOperator{typeof(max)}, x, y, g) = let
     tuple(Jx' * g, Jy' * g)
 end
 
-# sigmoida
 σ(x) = BroadcastedOperator(σ, x)
 forward(::BroadcastedOperator{typeof(σ)}, x) = 1.0 ./ (1.0 .+ exp.(-x))
 backward(node::BroadcastedOperator{typeof(σ)}, x, g) = let
@@ -92,25 +89,22 @@ backward(node::BroadcastedOperator{typeof(σ)}, x, g) = let
     tuple(J' * g)
 end
 
-# Linear — funkcja tożsamości
 linear(x) = BroadcastedOperator(linear, x)
 forward(::BroadcastedOperator{typeof(linear)}, x) = x
 backward(::BroadcastedOperator{typeof(linear)}, x, g) = tuple(diagm(ones(length(x)))' * g)
 
-# ReLU — max(x, 0)
 relu(x) = BroadcastedOperator(relu, x)
 forward(::BroadcastedOperator{typeof(relu)}, x) = max.(x, 0.0)
 backward(node::BroadcastedOperator{typeof(relu)}, x, g) = begin
-    J = diagm(x .> 0.0)  # 1 dla x>0, 0 dla x<=0
+    J = diagm(x .> 0.0)
     tuple(J' * g)
 end
 
-# Swish — x / (1 + exp(-x))
 swish(x) = BroadcastedOperator(swish, x)
 forward(::BroadcastedOperator{typeof(swish)}, x) = x ./ (1 .+ exp.(-x))
 backward(node::BroadcastedOperator{typeof(swish)}, x, g) = begin
     σ = 1.0 ./ (1 .+ exp.(-x))
     y = node.output
-    J = diagm(σ .+ x .* σ .* (1 .- σ))  # swish' = σ + x * σ * (1 - σ)
+    J = diagm(σ .+ x .* σ .* (1 .- σ))
     tuple(J' * g)
 end

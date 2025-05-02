@@ -1,7 +1,7 @@
 struct Dense
     W::AD.Variable
     b::Union{AD.Variable, Nothing}
-    activation::Function  # <- To może zostać
+    activation::Function
 end
 
 function Dense(in_dim::Int, out_dim::Int, activation::Function=AD.linear; bias::Bool=true)
