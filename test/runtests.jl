@@ -19,7 +19,6 @@ const MF = myExample.MiniFlux
     expected_y = sin(25.0)
     expected_grad = 2 * 5.0 * cos(25.0)
 
-    #sprawdzenie wyliczonych pochodnych z oczekiwanymi
     @test isapprox(y_val, expected_y; atol=1e-10)
     @test isapprox(x.gradient, expected_grad; atol=1e-10)
 end
@@ -28,14 +27,12 @@ include("iris.jl")
 
 @testset "MiniFlux training test (Iris)" begin
 
-    # Tworzymy sieć: wejście 4 -> wyjście 3 (bo mamy 3 klasy), bez aktywacji
     layer = MF.Dense(4, 3, AD.linear; bias=true)
     params = [layer.W, layer.b]
     model = MF.Model([layer], params)
 
     iris_data = [(vec(inputs[i, :]), vec(targets[i, :])) for i in 1:size(inputs, 1)]
 
-    # strata przed treningiem
     x_before = AD.Variable(vec(inputs[1, :]), name="x")
     y_true   = AD.Variable(vec(targets[1, :]), name="y")
     ŷ_before = model(x_before)
@@ -43,10 +40,10 @@ include("iris.jl")
     graph_before = AD.topological_sort(loss_before)
     initial_loss = AD.forward!(graph_before)
 
-    # 1 epoka z malym lr
+    # 1 epoch with small learning rate
     MF.train!(model, MF.mse_loss, iris_data, MF.sgd!, 1; lr=0.001)
 
-    # strata po treningu
+    # loss after trainig
     x_after = AD.Variable(vec(inputs[1, :]), name="x")
     y_true_after   = AD.Variable(vec(targets[1, :]), name="y")
     ŷ_after = model(x_after)
@@ -64,13 +61,11 @@ function accuracy(model, data)
     correct = 0
     for (x_val, y_val) in data
 
-        # forward dla predykcji
         x_var = AD.Variable(x_val, name="x")
         y_pred_var = model(x_var)
         
         y_out = AD.forward!(AD.topological_sort(y_pred_var))
 
-        # decyzja klasy
         pred = argmax(y_out)
         truth = argmax(y_val)
         correct += (pred == truth)
@@ -86,20 +81,16 @@ end
     Random.seed!(42)
     shuffle!(iris_data)
 
-    # split 70/30
     n = length(iris_data)
     n_train = Int(floor(0.7n))
     train_data = iris_data[1:n_train]
     test_data  = iris_data[n_train+1:end]
 
-    # budowa modelu
     layer = MF.Dense(4, 3, AD.swish; bias=true)
     model = MF.Model([layer], [layer.W, layer.b])
 
-    # trenowanie
     MF.train!(model, MF.mse_loss, train_data, MF.sgd!, 10; lr=0.01)
 
-    # accuracy
     acc_train = accuracy(model, train_data)
     acc_test  = accuracy(model, test_data)
 
