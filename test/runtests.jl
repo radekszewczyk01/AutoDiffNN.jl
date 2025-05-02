@@ -29,7 +29,7 @@ include("iris.jl")
 @testset "MiniFlux training test (Iris)" begin
 
     # Tworzymy sieć: wejście 4 -> wyjście 3 (bo mamy 3 klasy), bez aktywacji
-    layer = MF.Dense(4, 3, identity; bias=true)
+    layer = MF.Dense(4, 3, AD.linear; bias=true)
     params = [layer.W, layer.b]
     model = MF.Model([layer], params)
 
@@ -93,7 +93,7 @@ end
     test_data  = iris_data[n_train+1:end]
 
     # budowa modelu
-    layer = MF.Dense(4, 3, AD.linear; bias=true)
+    layer = MF.Dense(4, 3, AD.swish; bias=true)
     model = MF.Model([layer], [layer.W, layer.b])
 
     # trenowanie

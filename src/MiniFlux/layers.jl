@@ -10,8 +10,8 @@ function Dense(in_dim::Int, out_dim::Int, activation::Function=AD.linear; bias::
     return Dense(W, b, activation)
 end
 
-function (layer::Dense)(x::AD.Variable)
+function (layer::Dense)(x::AD.GraphNode)
     lin = layer.W * x
-    z   = layer.b === nothing ? lin : lin .+ layer.b
+    z = layer.b === nothing ? lin : lin .+ layer.b
     return layer.activation(z)
 end
