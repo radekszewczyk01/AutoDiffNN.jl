@@ -40,10 +40,8 @@ include("iris.jl")
     graph_before = AD.topological_sort(loss_before)
     initial_loss = AD.forward!(graph_before)
 
-    # 1 epoch with small learning rate
     MF.train!(model, MF.mse_loss, iris_data, MF.sgd!, 1; lr=0.001)
 
-    # loss after trainig
     x_after = AD.Variable(vec(inputs[1, :]), name="x")
     y_true_after   = AD.Variable(vec(targets[1, :]), name="y")
     ŷ_after = model(x_after)
