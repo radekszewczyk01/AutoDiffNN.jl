@@ -43,10 +43,6 @@ end
 broadcasted(^, x::GraphNode, y::GraphNode) = BroadcastedOperator(^, x, y)
 forward(::BroadcastedOperator{typeof(^)}, x, y) = x .^ y
 backward(node::BroadcastedOperator{typeof(^)}, x, y, g) = let
-    println("Power backward - x type: ", typeof(x), " shape: ", size(x))
-    println("Power backward - y type: ", typeof(y), " shape: ", size(y))
-    println("Power backward - g type: ", typeof(g), " shape: ", size(g))
-    
     # Handle scalar inputs
     if isa(x, Number)
         x_vec = [x]
@@ -112,27 +108,25 @@ end
 σ(x) = BroadcastedOperator(σ, x)
 forward(::BroadcastedOperator{typeof(σ)}, x) = 1.0 ./ (1.0 .+ exp.(-x))
 backward(node::BroadcastedOperator{typeof(σ)}, x, g) = let
-    y = node.output
-    J = diagm(y .* (1.0 .- y))
-    tuple(J' * g)
+    if ndims(x) == 1
+        # For vector inputs
+        s = σ.(x)
+        return g .* s .* (1 .- s)
+    else
+        # For batch inputs
+        s = σ.(x)
+        return reshape(g, size(x)) .* s .* (1 .- s)
+    end
 end
 
 linear(x) = BroadcastedOperator(linear, x)
 forward(::BroadcastedOperator{typeof(linear)}, x) = x
 backward(::BroadcastedOperator{typeof(linear)}, x, g) = begin
-    println("Linear backward - x shape: ", size(x))
-    println("Linear backward - g shape: ", size(g))
-    println("Linear backward - x type: ", typeof(x))
-    println("Linear backward - g type: ", typeof(g))
-    
     # Handle array gradients
     if !isempty(x)
         if isa(x, AbstractArray)
             # For matrix multiplication, we need to handle the gradient properly
             if ndims(x) == 2 && ndims(g) == 2
-                println("Linear backward - matrix multiplication case")
-                println("Linear backward - x dimensions: ", size(x))
-                println("Linear backward - g dimensions: ", size(g))
                 # Reshape gradient to match input dimensions
                 g_reshaped = reshape(g, size(x))
                 return tuple(g_reshaped)
@@ -149,9 +143,6 @@ end
 relu(x) = BroadcastedOperator(relu, x)
 forward(::BroadcastedOperator{typeof(relu)}, x) = max.(x, 0.0)
 backward(node::BroadcastedOperator{typeof(relu)}, x, g) = begin
-    println("ReLU backward - x type: ", typeof(x), " shape: ", size(x))
-    println("ReLU backward - g type: ", typeof(g), " shape: ", size(g))
-    
     # Handle scalar gradient
     if g isa Number
         g = fill(g, size(x))
@@ -214,23 +205,12 @@ function forward(::BroadcastedOperator{typeof(conv2d)}, x, kernel)
 end
 
 function backward(node::BroadcastedOperator{typeof(conv2d)}, x, kernel, g)
-    println("Conv2d backward - x shape: ", size(x))
-    println("Conv2d backward - kernel shape: ", size(kernel))
-    println("Conv2d backward - g shape: ", size(g))
-    
     if ndims(x) == 4
         batch_size = size(x, 4)
         in_channels = size(x, 3)
         out_channels = size(kernel, 1)
         out_h = size(x, 1) - size(kernel, 3) + 1
         out_w = size(x, 2) - size(kernel, 4) + 1
-        
-        println("Conv2d backward - computed shapes:")
-        println("  batch_size: ", batch_size)
-        println("  in_channels: ", in_channels)
-        println("  out_channels: ", out_channels)
-        println("  out_h: ", out_h)
-        println("  out_w: ", out_w)
         
         grad_x = zeros(size(x))
         grad_k = zeros(size(kernel))
@@ -355,9 +335,6 @@ function forward(::BroadcastedOperator{typeof(maxpool2d)}, x, kernel_size)
 end
 
 function backward(node::BroadcastedOperator{typeof(maxpool2d)}, x, kernel_size, g)
-    println("Maxpool2d backward - x type: ", typeof(x), " shape: ", size(x))
-    println("Maxpool2d backward - g type: ", typeof(g), " shape: ", size(g))
-    
     if ndims(x) == 4
         kh, kw = kernel_size
         h, w, c, b = size(x)
@@ -435,69 +412,44 @@ end
 broadcasted(reshape, x::GraphNode, dims::Tuple) = BroadcastedOperator(reshape, x, dims)
 forward(::BroadcastedOperator{typeof(reshape)}, x, dims) = reshape(x, dims)
 backward(node::BroadcastedOperator{typeof(reshape)}, x, dims, g) = begin
-    println("Reshape backward - x type: ", typeof(x), " shape: ", size(x))
-    println("Reshape backward - g type: ", typeof(g), " shape: ", size(g))
-    println("Reshape backward - dims: ", dims)
-    
     # Reshape gradient back to original shape
     tuple(reshape(g, size(x)))
 end
 
 function forward(::BroadcastedOperator{typeof(mul!)}, A, x)
-    println("Matrix mul forward - A shape: ", size(A))
-    println("Matrix mul forward - x shape: ", size(x))
-    println("Matrix mul forward - A type: ", typeof(A))
-    println("Matrix mul forward - x type: ", typeof(x))
-    
     if ndims(A) == 2 && ndims(x) == 2
-        println("Matrix mul forward - matrix multiplication case")
-        println("Matrix mul forward - output shape: ", size(A * x))
         return A * x
     else
-        println("Matrix mul forward - non-matrix case")
         return A .* x
     end
 end
 
 function backward(::BroadcastedOperator{typeof(mul!)}, A, x, g)
-    println("Matrix mul backward - A shape: ", size(A))
-    println("Matrix mul backward - x shape: ", size(x))
-    println("Matrix mul backward - g shape: ", size(g))
-    println("Matrix mul backward - A type: ", typeof(A))
-    println("Matrix mul backward - x type: ", typeof(x))
-    println("Matrix mul backward - g type: ", typeof(g))
-    
     # For matrix multiplication, we need to handle the gradient properly
     if ndims(A) == 2 && ndims(x) == 2 && ndims(g) == 2
-        println("Matrix mul backward - matrix multiplication case")
-        println("Matrix mul backward - computed shapes:")
-        println("  g * x': ", size(g), " * ", size(x'))
-        println("  A' * g: ", size(A'), " * ", size(g))
         return tuple(g * x', A' * g)
     else
-        println("Matrix mul backward - non-matrix case")
         return tuple(g, g)
     end
 end
 
 function forward(op::BroadcastedOperator{typeof(linear)}, x::AbstractArray)
-    println("Linear forward - input shape: ", size(x))
-    println("Linear forward - input type: ", typeof(x))
-    
     if isempty(x)
         return x
     end
     
     if isa(x, AbstractArray)
-        if ndims(x) == 2
-            println("Linear forward - matrix case")
-            println("Linear forward - output shape: ", size(x))
-            return x
-        else
-            println("Linear forward - non-matrix case")
-            println("Linear forward - output shape: ", size(x))
-            return x
-        end
+        return x
     end
     return x
+end
+
+function backward(node::BroadcastedOperator{typeof(linear)}, x, g)
+    if ndims(x) == 1
+        # For vector inputs
+        return g
+    else
+        # For batch inputs
+        return reshape(g, size(x))
+    end
 end
