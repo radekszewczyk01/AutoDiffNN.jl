@@ -143,12 +143,10 @@ end
 relu(x) = BroadcastedOperator(relu, x)
 forward(::BroadcastedOperator{typeof(relu)}, x) = max.(x, 0.0)
 backward(node::BroadcastedOperator{typeof(relu)}, x, g) = begin
-    # Handle scalar gradient
     if g isa Number
         g = fill(g, size(x))
     end
     
-    # Convert boolean mask to float and multiply with gradient
     mask = Float64.(x .> 0.0)
     grad = mask .* g
     
@@ -164,13 +162,11 @@ backward(node::BroadcastedOperator{typeof(swish)}, x, g) = begin
     tuple(J' * g)
 end
 
-# Convolution operations
 function conv2d(x::GraphNode, kernel::GraphNode)
     return BroadcastedOperator(conv2d, x, kernel)
 end
 
 function forward(::BroadcastedOperator{typeof(conv2d)}, x, kernel)
-    # Handle multi-dimensional input (batch, channels, height, width)
     if ndims(x) == 4
         batch_size = size(x, 4)
         in_channels = size(x, 3)
@@ -184,7 +180,6 @@ function forward(::BroadcastedOperator{typeof(conv2d)}, x, kernel)
             for c_out in 1:out_channels
                 for i in 1:out_h, j in 1:out_w
                     patch = x[i:i+size(kernel,3)-1, j:j+size(kernel,4)-1, :, b]
-                    # Reshape patch to match kernel dimensions
                     patch_reshaped = reshape(patch, :, in_channels)
                     kernel_reshaped = reshape(kernel[c_out,:,:,:], :, in_channels)
                     output[i,j,c_out,b] = sum(patch_reshaped .* kernel_reshaped)
@@ -193,7 +188,6 @@ function forward(::BroadcastedOperator{typeof(conv2d)}, x, kernel)
         end
         return output
     else
-        # Handle 2D input (height, width)
         n, m = size(x) .- size(kernel) .+ 1
         J = zeros(n, m)
         for i in 1:n, j in 1:m
@@ -219,19 +213,15 @@ function backward(node::BroadcastedOperator{typeof(conv2d)}, x, kernel, g)
             for c_out in 1:out_channels
                 for i in 1:out_h, j in 1:out_w
                     patch = x[i:i+size(kernel,3)-1, j:j+size(kernel,4)-1, :, b]
-                    # Reshape patch to match kernel dimensions
                     patch_reshaped = reshape(patch, :, in_channels)
                     kernel_reshaped = reshape(kernel[c_out,:,:,:], :, in_channels)
                     
-                    # Compute gradients
                     grad_patch = g[i,j,c_out,b] .* kernel_reshaped
                     grad_kernel = g[i,j,c_out,b] .* patch_reshaped
                     
-                    # Reshape gradients back
                     grad_patch = reshape(grad_patch, size(patch))
                     grad_kernel = reshape(grad_kernel, size(kernel[c_out,:,:,:]))
                     
-                    # Accumulate gradients
                     grad_x[i:i+size(kernel,3)-1, j:j+size(kernel,4)-1, :, b] .+= grad_patch
                     grad_k[c_out,:,:,:] .+= grad_kernel
                 end
@@ -240,7 +230,6 @@ function backward(node::BroadcastedOperator{typeof(conv2d)}, x, kernel, g)
         
         return tuple(grad_x, grad_k)
     else
-        # Handle 2D input (height, width)
         n, m = size(x) .- size(kernel) .+ 1
         grad_x = zeros(size(x))
         grad_k = zeros(size(kernel))
@@ -258,7 +247,6 @@ function backward(node::BroadcastedOperator{typeof(conv2d)}, x, kernel, g)
     end
 end
 
-# Utility function for padding
 function pad2d(x::GraphNode, padding::Tuple{Int,Int})
     return BroadcastedOperator(pad2d, x, padding)
 end
@@ -291,7 +279,6 @@ function backward(node::BroadcastedOperator{typeof(pad2d)}, x, padding, g)
     end
 end
 
-# Max pooling operation
 function maxpool2d(x::GraphNode, kernel_size::Tuple{Int,Int})
     return BroadcastedOperator(maxpool2d, x, kernel_size)
 end
@@ -309,7 +296,6 @@ function forward(::BroadcastedOperator{typeof(maxpool2d)}, x, kernel_size)
             patch = x[(i-1)*kh+1:i*kh, (j-1)*kw+1:j*kw, ch, batch]
             val, idx = findmax(patch)
             output[i,j,ch,batch] = val
-            # Convert CartesianIndex to linear index
             indices[i,j,ch,batch] = (idx[1]-1)*kw + idx[2]
         end
         
@@ -326,7 +312,6 @@ function forward(::BroadcastedOperator{typeof(maxpool2d)}, x, kernel_size)
             patch = x[(i-1)*kh+1:i*kh, (j-1)*kw+1:j*kw]
             val, idx = findmax(patch)
             output[i,j] = val
-            # Convert CartesianIndex to linear index
             indices[i,j] = (idx[1]-1)*kw + idx[2]
         end
         
@@ -343,7 +328,6 @@ function backward(node::BroadcastedOperator{typeof(maxpool2d)}, x, kernel_size, 
         grad_x = zeros(size(x))
         indices = node.output[2]
         
-        # Handle scalar gradient
         if g isa Number
             g = fill(g, out_h, out_w, c, b)
         end
@@ -364,7 +348,6 @@ function backward(node::BroadcastedOperator{typeof(maxpool2d)}, x, kernel_size, 
         grad_x = zeros(size(x))
         indices = node.output[2]
         
-        # Handle scalar gradient
         if g isa Number
             g = fill(g, out_h, out_w)
         end
@@ -380,9 +363,7 @@ function backward(node::BroadcastedOperator{typeof(maxpool2d)}, x, kernel_size, 
     end
 end
 
-# Add tuple-like behavior for maxpool2d operator
 function forward!(node::BroadcastedOperator{typeof(maxpool2d)})
-    # Extract the actual input value from the GraphNode
     x = node.inputs[1].output
     kernel_size = node.inputs[2]
     output, indices = forward(node, x, kernel_size)
@@ -392,17 +373,13 @@ end
 
 function backward!(node::BroadcastedOperator{typeof(maxpool2d)})
     inputs = node.inputs
-    # Filter out non-GraphNode inputs and get their outputs
     graph_inputs = [input for input in inputs if input isa GraphNode]
     graph_outputs = [input.output for input in graph_inputs]
     
-    # Get all inputs (both GraphNode and non-GraphNode)
     all_inputs = [input isa GraphNode ? input.output : input for input in inputs]
     
-    # Compute gradients
     gradients = backward(node, all_inputs..., node.gradient)
     
-    # Update only GraphNode inputs
     for (input, gradient) in zip(graph_inputs, gradients)
         update!(input, gradient)
     end
@@ -411,10 +388,7 @@ end
 
 broadcasted(reshape, x::GraphNode, dims::Tuple) = BroadcastedOperator(reshape, x, dims)
 forward(::BroadcastedOperator{typeof(reshape)}, x, dims) = reshape(x, dims)
-backward(node::BroadcastedOperator{typeof(reshape)}, x, dims, g) = begin
-    # Reshape gradient back to original shape
-    tuple(reshape(g, size(x)))
-end
+backward(node::BroadcastedOperator{typeof(reshape)}, x, dims, g) = tuple(reshape(g, size(x)))
 
 function forward(::BroadcastedOperator{typeof(mul!)}, A, x)
     if ndims(A) == 2 && ndims(x) == 2
@@ -425,7 +399,6 @@ function forward(::BroadcastedOperator{typeof(mul!)}, A, x)
 end
 
 function backward(::BroadcastedOperator{typeof(mul!)}, A, x, g)
-    # For matrix multiplication, we need to handle the gradient properly
     if ndims(A) == 2 && ndims(x) == 2 && ndims(g) == 2
         return tuple(g * x', A' * g)
     else
@@ -446,10 +419,8 @@ end
 
 function backward(node::BroadcastedOperator{typeof(linear)}, x, g)
     if ndims(x) == 1
-        # For vector inputs
         return g
     else
-        # For batch inputs
         return reshape(g, size(x))
     end
 end

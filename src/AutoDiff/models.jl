@@ -45,17 +45,13 @@ length(x::GraphNode) = length(x.output)
 ndims(x::GraphNode) = ndims(x.output)
 eltype(x::GraphNode) = eltype(x.output)
 
-# Add reshape method
 reshape(x::GraphNode, dims...) = BroadcastedOperator(reshape, x, dims...)
 
 function forward(::BroadcastedOperator{typeof(reshape)}, x, dims...)
-    # If dims is a tuple of integers or Colon, use it directly
     if all(d -> isa(d, Union{Integer, Colon}), dims)
         return reshape(x, dims...)
-    # If dims is a tuple containing a tuple of integers or Colon, use the inner tuple
     elseif length(dims) == 1 && isa(dims[1], Tuple)
         return reshape(x, dims[1]...)
-    # If we have multiple arguments and the first is a tuple, use that for reshaping
     elseif length(dims) > 1 && isa(dims[1], Tuple)
         return reshape(x, dims[1]...)
     else
@@ -64,27 +60,21 @@ function forward(::BroadcastedOperator{typeof(reshape)}, x, dims...)
 end
 
 function backward(node::BroadcastedOperator{typeof(reshape)}, x, dims...)
-    # Get the original shape from the input
     original_shape = size(x)
     
-    # If we have an extra argument for the original shape, use it
     if length(dims) > 1 && dims[2] isa Tuple
         original_shape = dims[2]
     end
     
-    # Reshape gradient back to original shape
     if node.gradient isa Array
-        # If gradient is an array, reshape it to match the original shape
         if length(node.gradient) == prod(original_shape)
             grad = reshape(node.gradient, original_shape)
         else
-            # If sizes don't match, create a zero array and copy what we can
             grad = zeros(original_shape)
             min_size = min(length(node.gradient), length(grad))
             grad[1:min_size] = node.gradient[1:min_size]
         end
     else
-        # If gradient is a scalar, create a zero array of the original shape
         grad = zeros(original_shape)
         grad[1] = node.gradient
     end
@@ -92,14 +82,11 @@ function backward(node::BroadcastedOperator{typeof(reshape)}, x, dims...)
     tuple(grad)
 end
 
-# For single values
 iterate(x::GraphNode) = iterate(x.output)
 iterate(x::GraphNode, state) = iterate(x.output, state)
 
-# For tuples
 getindex(x::GraphNode, i::Integer) = begin
     if x isa BroadcastedOperator
-        # Compute the output if it hasn't been computed yet
         if x.output === nothing
             x.output = forward(x, [input.output for input in x.inputs]...)
         end
@@ -107,18 +94,15 @@ getindex(x::GraphNode, i::Integer) = begin
     getindex(x.output, i)
 end
 
-# Add method for Tuple types
 Base.getindex(x::Tuple, i::Integer) = x[i]
 
-# Add size methods for getindex operator
 function forward(::BroadcastedOperator{typeof(getindex)}, x, i)
     return getindex(x, i)
 end
 
 function backward(node::BroadcastedOperator{typeof(getindex)}, x, i, g)
-    # Handle tuple inputs (like from maxpool2d)
     if x isa Tuple
-        x = x[1]  # Use the first element of the tuple (the output array)
+        x = x[1]
     end
     
     grad = zeros(size(x))

@@ -82,7 +82,6 @@ end
 
     # Test forward pass
     x = AD.Variable(batch, name="x")
-    println("Input variable shape: ", size(x.output))
     y = model(x)
     output = AD.forward!(AD.topological_sort(y))
 

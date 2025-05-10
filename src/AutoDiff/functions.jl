@@ -19,7 +19,6 @@ function visit(node::Operator, visited, order)
     return nothing
 end
 
-# Handle non-GraphNode inputs (like tuples, integers, etc.)
 function visit(node::Any, visited, order)
     return nothing
 end
@@ -67,17 +66,13 @@ function backward!(node::Constant) end
 function backward!(node::Variable) end
 function backward!(node::Operator)
     inputs = node.inputs
-    # Filter out non-GraphNode inputs and get their outputs
     graph_inputs = [input for input in inputs if input isa GraphNode]
     graph_outputs = [input.output for input in graph_inputs]
     
-    # Get all inputs (both GraphNode and non-GraphNode)
     all_inputs = [input isa GraphNode ? input.output : input for input in inputs]
     
-    # Compute gradients
     gradients = backward(node, all_inputs..., node.gradient)
     
-    # Update only GraphNode inputs
     for (input, gradient) in zip(graph_inputs, gradients)
         update!(input, gradient)
     end
