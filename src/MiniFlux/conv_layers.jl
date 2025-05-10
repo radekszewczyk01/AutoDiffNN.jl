@@ -100,11 +100,9 @@ end
 struct Flatten end
 
 function (layer::Flatten)(x::AD.GraphNode)
-    println("Flatten input shape: ", size(x.output))
     # Reshape to (features, batch_size)
     features = prod(size(x.output)[1:end-1])
     batch_size = size(x.output, ndims(x.output))
-    println("Flatten output shape: (", features, ", ", batch_size, ")")
     # Store the original shape for backward pass
     original_shape = size(x.output)
     # Create a reshape operator with the original shape stored

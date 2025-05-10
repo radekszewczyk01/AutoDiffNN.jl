@@ -119,30 +119,18 @@ function backward(node::BroadcastedOperator{typeof(getindex)}, x, i, g)
     # Handle tuple inputs (like from maxpool2d)
     if x isa Tuple
         x = x[1]  # Use the first element of the tuple (the output array)
-        println("getindex backward - tuple input, using first element with shape: ", size(x))
     end
     
-    # Create zero tensor of same size as input
     grad = zeros(size(x))
-    println("getindex backward - created grad tensor with shape: ", size(grad))
     
-    # Handle array gradients
     if g isa Array
-        # If gradient is an array, copy it to the correct position
-        # For 4D arrays, we need to handle each dimension
         if ndims(g) == 4
             h, w, c, b = size(g)
-            println("getindex backward - input gradient shape: (h=$h, w=$w, c=$c, b=$b)")
-            println("getindex backward - index i: $i")
             
-            # Get the slice for the first batch
-            slice = g[:, :, :, 1]  # Get all channels for first batch
-            println("getindex backward - slice shape: ", size(slice))
+            slice = g[:, :, :, 1]
             
-            # Directly assign to the correct position in the gradient tensor
             for h_idx in 1:h, w_idx in 1:w, ch in 1:c
                 try
-                    # Only assign to batch index 1 since that's what we have
                     grad[h_idx, w_idx, ch, 1] = slice[h_idx, w_idx, ch]
                 catch e
                     println("getindex backward - Error at indices: h=$h_idx, w=$w_idx, ch=$ch")
@@ -155,17 +143,14 @@ function backward(node::BroadcastedOperator{typeof(getindex)}, x, i, g)
             grad[i] = g
         end
     else
-        # If gradient is a scalar, set it at the indexed position
         grad[i] = g
     end
     
     tuple(grad)
 end
 
-# Update size method to handle getindex operator
 function size(x::BroadcastedOperator{typeof(getindex)})
     if x.output === nothing
-        # If output hasn't been computed yet, compute it
         input = x.inputs[1]
         index = x.inputs[2]
         x.output = forward(x, input.output, index)
