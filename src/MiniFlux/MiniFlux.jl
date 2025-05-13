@@ -10,19 +10,9 @@ include("losses.jl")
 include("optimizers.jl")
 include("training.jl")
 
-export Dense, mse_loss, sgd!, train!, Model, relu, swish, linear
+export Dense, mse_loss, sgd!, train!, Model, relu, swish, linear, layer_vars, create_batches,
+       Embedding, PermuteDims, Conv1D, MaxPool1D, Flatten, Model, train!, binary_cross_entropy_loss,
+       accuracy_fn, Conv
 
-struct Model
-    layers::Vector
-    params::Vector{AD.Variable}
-end
-
-function (m::Model)(x)
-    a = x
-    for layer in m.layers
-        a = layer(a)
-    end
-    return a
-end
 
 end 

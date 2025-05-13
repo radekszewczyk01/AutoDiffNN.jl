@@ -1,5 +1,6 @@
 module AutoDiff
 
+import Base: show, summary
 using LinearAlgebra
 
 __precompile__(false)
@@ -9,6 +10,7 @@ include("operators.jl")
 include("functions.jl")
 
 export GraphNode, Operator, Constant, Variable, ScalarOperator,
-       BroadcastedOperator, topological_sort, forward!, backward!, update!, relu, σ, swish, linear
+       BroadcastedOperator, topological_sort, forward!, backward!, update!, relu, σ, swish, linear,
+       EmbeddingOperator, Embedding, ConvOperator, PermuteDims
 
 end
