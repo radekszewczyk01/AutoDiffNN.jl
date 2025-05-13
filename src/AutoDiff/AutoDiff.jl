@@ -11,6 +11,6 @@ include("functions.jl")
 
 export GraphNode, Operator, Constant, Variable, ScalarOperator,
        BroadcastedOperator, topological_sort, forward!, backward!, update!, relu, σ, swish, linear,
-       EmbeddingOperator, Embedding, ConvOperator, PermuteDims
+       EmbeddingOperator, Embedding, Conv, ConvOperator, PermuteDims, PermuteDimsOperator
 
 end

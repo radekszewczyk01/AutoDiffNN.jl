@@ -199,15 +199,17 @@ function backward(node::ConvOperator, x, W, b, g)
 end
 
 mutable struct PermuteDimsOperator <: Operator
-    input::GraphNode
+    inputs::Tuple{GraphNode}
     perm::Tuple{Vararg{Int}}
     output::Any
     gradient::Any
     name::String
 end
 
-PermuteDims(x::GraphNode, perm::Tuple{Vararg{Int}}; name="PermuteDims") =
-    PermuteDimsOperator(x, perm, nothing, nothing, name)
+function PermuteDims(x::GraphNode, perm::Tuple{Vararg{Int}}; name="PermuteDims")
+    return PermuteDimsOperator((x,), perm, nothing, nothing, name)
+end
+
 
 function forward(op::PermuteDimsOperator, x)
     return permutedims(x, op.perm)

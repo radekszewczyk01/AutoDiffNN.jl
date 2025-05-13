@@ -1,3 +1,24 @@
+struct Model
+    layers::Vector
+    params::Vector{AD.Variable}
+end
+
+function Model(layers::Vector)
+    ps = reduce(vcat, layer_vars.(layers))  # spłaszczamy listę wektorów
+    return Model(layers, ps)
+end
+
+function (m::Model)(x)
+    a = x
+    for layer in m.layers
+        println("layer: ", layer)
+        a = layer(a)
+        println("a: ", typeof(a))
+    end
+    return a
+end
+
+
 struct Dense
     W::AD.Variable
     b::Union{AD.Variable, Nothing}
