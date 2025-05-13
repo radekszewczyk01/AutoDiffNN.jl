@@ -1,6 +1,6 @@
 using Test
 using Random
-using myExample  # Załaduj bibliotekę zawierającą AutoDiff i MiniFlux
+using myExample
 
 const AD = myExample.AutoDiff
 const MF = myExample.MiniFlux
@@ -13,7 +13,6 @@ const MF = myExample.MiniFlux
     embedding_layer = MF.Embedding(vocab_size, embedding_dim)
     y = embedding_layer(x)
     
-    # Check output dimensions
     println(y)
 
     loss = AD.sum(y)
@@ -24,12 +23,10 @@ const MF = myExample.MiniFlux
     AD.backward!(graph)
 
     @test size(y.output) == (embedding_dim, length(x_val))
-    # Test gradient for W exists and has correct shape
     @test !isnothing(embedding_layer.W.gradient)
-    #@test size(embedding_layer.W.gradient) == size(embedding_layer.W.output)
+    @test size(embedding_layer.W.gradient) == size(embedding_layer.W.output)
 
-    # Test no gradient propagates to indices (x)
-    @test isnothing(x.gradient)  # x is integer indices - should have no gradient
+    @test isnothing(x.gradient)
 
-    # Verify loss is a scalar
+    @test isa(loss.output, Number)
 end

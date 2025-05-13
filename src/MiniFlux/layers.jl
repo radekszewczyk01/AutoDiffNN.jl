@@ -11,9 +11,7 @@ end
 function (m::Model)(x)
     a = x
     for layer in m.layers
-        println("layer: ", layer)
         a = layer(a)
-        println("a: ", typeof(a))
     end
     return a
 end
@@ -61,11 +59,11 @@ end
 function Conv(kernel_size::Tuple, dims::Pair{Int, Int}, activation::Function=AD.linear; stride::Int=1, pad::Int=0)
     in_channels, out_channels = dims
     k = kernel_size[1]
-    W = AD.Variable(randn(out_channels, in_channels, k), name="W_conv")
+    # filtr y[oc, i, c] gdzie i w kernel_size, c in_channels
+    W = AD.Variable(randn(out_channels, k, in_channels), name="W_conv")
     b = AD.Variable(zeros(out_channels), name="b_conv")
     return Conv(W, b, activation, stride, pad)
 end
-
 
 function (layer::Conv)(x::AD.GraphNode)
     conv_op = AD.ConvOperator((x, layer.W, layer.b), nothing, nothing, layer.stride, layer.pad, "Conv1D")
@@ -79,6 +77,31 @@ end
 function (layer::PermuteDims)(x::AD.GraphNode)
     return AD.PermuteDims(x, layer.perm)
 end
+
+"""  
+    MaxPool1D(pool_size::Int)
+
+Warstwa max‐poolingu 1D (bez overlapu, stride = pool_size).
+"""
+struct MaxPool1D
+    pool_size::Int
+end
+
+function (layer::MaxPool1D)(x::GraphNode)
+    return AD.MaxPool1D(x, layer.pool_size)
+end
+
+"""
+    Flatten()
+
+Warstwa spłaszczająca tensor `(batch, d1, d2, …, dn)` → `(batch, d1*d2*…*dn)`.
+"""
+struct Flatten end
+
+function (layer::Flatten)(x::GraphNode)
+    return AD.Flatten(x)
+end
+
 
 function layer_vars(layer)
     vs = AD.Variable[]
@@ -119,4 +142,3 @@ function train_cnn!(model::Model, loss_fn, data, optimiser, epochs::Int)
         end
     end
 end
-

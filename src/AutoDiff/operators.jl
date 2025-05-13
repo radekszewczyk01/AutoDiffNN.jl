@@ -104,16 +104,50 @@ backward(node::BroadcastedOperator{typeof(swish)}, x, g) = (
 
 Embedding(W::Variable, x::GraphNode) = EmbeddingOperator((W, x), nothing, nothing, "Embedding")
 function forward(::EmbeddingOperator, W_output::AbstractMatrix, x_output::AbstractVector{<:Integer})
-    return W_output[:, x_output]  # Embedding lookup
+    return W_output[:, x_output]
 end
 function backward(::EmbeddingOperator, W_output::AbstractMatrix, x_output::AbstractVector{<:Integer}, g::AbstractMatrix)
     gradW = zeros(size(W_output))
     for (i, idx) in enumerate(x_output)
-        gradW[:, idx] .+= g[:, i]  # Accumulate gradients for embedding matrix
+        gradW[:, idx] .+= g[:, i]
     end
-    return (gradW, nothing)  # No gradient for indices (x is treated as integer input)
+    return (gradW, nothing)
 end
 
+function forward(::EmbeddingOperator, W_output::AbstractMatrix, x_output::AbstractMatrix{<:Integer})
+    embed_dim, _ = size(W_output)
+    seq_len, batch_size = size(x_output)
+    out = zeros(eltype(W_output), embed_dim, seq_len, batch_size)
+    @inbounds for i in 1:seq_len, j in 1:batch_size
+        out[:, i, j] = @view W_output[:, x_output[i, j]]
+    end
+    return out
+end
+
+
+function backward(::EmbeddingOperator,
+                  W_output::AbstractMatrix,
+                  x_output::AbstractMatrix{<:Integer},
+                  g::AbstractArray)
+    gradW = zeros(eltype(W_output), size(W_output))
+    seq_len, batch_size = size(x_output)
+    @inbounds for i in 1:seq_len, j in 1:batch_size
+        idx = x_output[i, j]
+        gradW[:, idx] .+= g[:, i, j]
+    end
+    return (gradW, nothing)  # tylko W ma gradient
+end
+
+function PermuteDims(x::GraphNode, perm::Tuple{Vararg{Int}}; name="PermuteDims")
+    return PermuteDimsOperator((x,), perm, nothing, nothing, name)
+end
+function forward(op::PermuteDimsOperator, x)
+    return permutedims(x, op.perm)
+end
+function backward(op::PermuteDimsOperator, x, grad)
+    inv_perm = invperm(op.perm)
+    return (permutedims(grad, inv_perm),)
+end
 
 Conv(W::Variable, x::GraphNode, b::Union{Variable,Nothing}, stride::Int, pad::Int; name::String="Conv") =
  ConvOperator((x, W, b), nothing, nothing, stride, pad, name)
@@ -135,95 +169,100 @@ function unpad_array(x, pad::Int)
 end
 
 function forward(node::ConvOperator, x, W, b)
-    # x shape: (batch, length, in_channels)
-    # W shape: (out_channels, in_channels, kernel_size)
     batch_size, in_len, in_channels = size(x)
     out_channels, _, kernel_size = size(W)
     
-    # Calculate output length
     out_len = div(in_len + 2*node.pad - kernel_size, node.stride) + 1
     
-    # Initialize output
     output = zeros(batch_size, out_len, out_channels)
     
-    # Add padding
     x_padded = pad_array(x, node.pad)
     
-    # Perform convolution
     for b in 1:batch_size, t in 1:out_len, oc in 1:out_channels
         start = (t-1)*node.stride + 1
         window = @view x_padded[b, start:start+kernel_size-1, :]
         output[b, t, oc] = sum(W[oc, :, :] .* window)
     end
     
-    # Add bias if present
     if !isnothing(b)
         output .+= reshape(b, 1, 1, :)
     end
 
-    #node.output = output
     return output
 end
 
 function backward(node::ConvOperator, x, W, b, g)
-    # Gradient calculations
     x_grad = zeros(size(x))
     W_grad = zeros(size(W))
     b_grad = isnothing(b) ? nothing : zeros(size(b))
     
-    # Pad input gradient
     x_padded = pad_array(x, node.pad)
     x_grad_padded = pad_array(x_grad, node.pad)
     
-    # Backward pass
     for b in 1:size(g, 1), t in 1:size(g, 2), oc in 1:size(g, 3)
         start = (t-1)*node.stride + 1
         window = @view x_padded[b, start:start+size(W, 3)-1, :]
         
-        # Weight gradient
         W_grad[oc, :, :] .+= window .* g[b, t, oc]
         
-        # Input gradient
         x_grad_padded[b, start:start+size(W, 3)-1, :] .+= W[oc, :, :] .* g[b, t, oc]
         
-        # Bias gradient
         if !isnothing(b_grad)
             b_grad[oc] += g[b, t, oc]
         end
     end
     
-    # Remove padding from input gradient
     x_grad = unpad_array(x_grad_padded, node.pad)
     
     return (x_grad, W_grad, b_grad)
 end
 
-mutable struct PermuteDimsOperator <: Operator
-    inputs::Tuple{GraphNode}
-    perm::Tuple{Vararg{Int}}
-    output::Any
-    gradient::Any
-    name::String
+
+function MaxPool1D(x::GraphNode, pool_size::Int; name::String="MaxPool1D")
+    return MaxPool1DOperator((x,), pool_size, nothing, nothing, name)
 end
 
-function PermuteDims(x::GraphNode, perm::Tuple{Vararg{Int}}; name="PermuteDims")
-    return PermuteDimsOperator((x,), perm, nothing, nothing, name)
+function forward(op::MaxPool1DOperator, x::Array)
+    batch, seq_len, channels = size(x)
+    out_len = div(seq_len, op.pool_size)
+    y = zeros(eltype(x), batch, out_len, channels)
+    @inbounds for b in 1:batch, c in 1:channels, i in 1:out_len
+        window = @view x[b, (i-1)*op.pool_size+1:i*op.pool_size, c]
+        y[b,i,c] = maximum(window)
+    end
+    return y
+end
+
+function backward(op::MaxPool1DOperator, x::Array, grad::Array)
+    batch, seq_len, channels = size(x)
+    out_len = div(seq_len, op.pool_size)
+    x_grad = zeros(eltype(x), size(x))
+    @inbounds for b in 1:batch, c in 1:channels, i in 1:out_len
+        start = (i-1)*op.pool_size + 1
+        window = @view x[b, start:start+op.pool_size-1, c]
+        maxval = maximum(window)
+        for j in 1:op.pool_size
+            if window[j] == maxval
+                x_grad[b, start+j-1, c] += grad[b, i, c]
+                break
+            end
+        end
+    end
+    return (x_grad,)
 end
 
 
-function forward(op::PermuteDimsOperator, x)
-    return permutedims(x, op.perm)
+function Flatten(x::GraphNode; name::String="Flatten")
+    return FlattenOperator((x,), nothing, nothing, (), name)
 end
 
-function backward(op::PermuteDimsOperator, x, grad)
-    inv_perm = invperm(op.perm)
-    return (permutedims(grad, inv_perm),)
+function forward(op::FlattenOperator, x::Array)
+    op.input_shape = size(x)
+    batch = size(x, 1)
+    new_dim = prod(size(x)[2:end])
+    return reshape(x, batch, new_dim)
 end
 
-relu(x::AbstractArray) = max.(x, 0.0)
-
-σ(x::AbstractArray) = 1.0 ./ (1.0 .+ exp.(-x))
-
-linear(x::AbstractArray) = x
-
-swish(x::AbstractArray) = x ./ (1 .+ exp.(-x))
+function backward(op::FlattenOperator, x::Array, grad::Array)
+    return (reshape(grad, op.input_shape),)
+end

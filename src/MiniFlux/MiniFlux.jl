@@ -12,7 +12,7 @@ include("training.jl")
 
 export Dense, mse_loss, sgd!, train!, Model, relu, swish, linear, layer_vars, create_batches,
        Embedding, PermuteDims, Conv1D, MaxPool1D, Flatten, Model, train!, binary_cross_entropy_loss,
-       accuracy_fn, Conv
+       accuracy_fn, Conv, MaxPool1D, Flatten
 
 
 end 
