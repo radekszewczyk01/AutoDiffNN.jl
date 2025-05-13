@@ -113,7 +113,6 @@ function backward(::EmbeddingOperator, W_output::AbstractMatrix, x_output::Abstr
     end
     return (gradW, nothing)
 end
-
 function forward(::EmbeddingOperator, W_output::AbstractMatrix, x_output::AbstractMatrix{<:Integer})
     embed_dim, _ = size(W_output)
     seq_len, batch_size = size(x_output)
@@ -123,8 +122,6 @@ function forward(::EmbeddingOperator, W_output::AbstractMatrix, x_output::Abstra
     end
     return out
 end
-
-
 function backward(::EmbeddingOperator,
                   W_output::AbstractMatrix,
                   x_output::AbstractMatrix{<:Integer},
@@ -151,7 +148,6 @@ end
 
 Conv(W::Variable, x::GraphNode, b::Union{Variable,Nothing}, stride::Int, pad::Int; name::String="Conv") =
  ConvOperator((x, W, b), nothing, nothing, stride, pad, name)
-
 function pad_array(x, pad::Int)
     if pad == 0
         return x
@@ -160,14 +156,12 @@ function pad_array(x, pad::Int)
     padded[:, pad+1:end-pad, :] = x
     return padded
 end
-
 function unpad_array(x, pad::Int)
     if pad == 0
         return x
     end
     return x[:, pad+1:end-pad, :]
 end
-
 function forward(node::ConvOperator, x, W, b)
     batch_size, in_len, in_channels = size(x)
     out_channels, _, kernel_size = size(W)
@@ -190,7 +184,6 @@ function forward(node::ConvOperator, x, W, b)
 
     return output
 end
-
 function backward(node::ConvOperator, x, W, b, g)
     x_grad = zeros(size(x))
     W_grad = zeros(size(W))
@@ -221,7 +214,6 @@ end
 function MaxPool1D(x::GraphNode, pool_size::Int; name::String="MaxPool1D")
     return MaxPool1DOperator((x,), pool_size, nothing, nothing, name)
 end
-
 function forward(op::MaxPool1DOperator, x::Array)
     batch, seq_len, channels = size(x)
     out_len = div(seq_len, op.pool_size)
@@ -232,7 +224,6 @@ function forward(op::MaxPool1DOperator, x::Array)
     end
     return y
 end
-
 function backward(op::MaxPool1DOperator, x::Array, grad::Array)
     batch, seq_len, channels = size(x)
     out_len = div(seq_len, op.pool_size)
@@ -255,14 +246,12 @@ end
 function Flatten(x::GraphNode; name::String="Flatten")
     return FlattenOperator((x,), nothing, nothing, (), name)
 end
-
 function forward(op::FlattenOperator, x::Array)
     op.input_shape = size(x)
     batch = size(x, 1)
     new_dim = prod(size(x)[2:end])
     return reshape(x, batch, new_dim)
 end
-
 function backward(op::FlattenOperator, x::Array, grad::Array)
     return (reshape(grad, op.input_shape),)
 end
