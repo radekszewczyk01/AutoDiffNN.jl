@@ -22,15 +22,14 @@ end
 
 function layer_vars(layer)
     vars = AD.Variable[]
-    for f in fieldnames(typeof(layer))
-        val = getfield(layer, f)
-        if val isa AD.Variable
-            push!(vars, val)
-        elseif val isa Union{Nothing, AD.Variable} && val !== nothing
-            push!(vars, val)
-        elseif val isa AbstractArray
-            append!(vars, filter(x -> x isa AD.Variable, val))
+    if layer isa Embedding || layer isa Conv
+        push!(vars, layer.weight)
+        if isdefined(layer, :bias) && layer.bias !== nothing
+            push!(vars, layer.bias)
         end
+    elseif layer isa Dense
+        push!(vars, layer.W)
+        layer.b !== nothing && push!(vars, layer.b)
     end
     return vars
 end
@@ -43,8 +42,9 @@ struct Dense
 end
 
 function Dense(in_dim::Int, out_dim::Int, activation::Function=AD.linear; bias::Bool=true)
-    W = AD.Variable(randn(out_dim, in_dim), name="W")
-    b = bias ? AD.Variable(randn(out_dim), name="b") : nothing
+    W = AD.Variable(randn(out_dim, in_dim) * 0.01, name="W")
+    # Store bias as column vector (out_dim, 1)
+    b = bias ? AD.Variable(zeros(out_dim, 1), name="b") : nothing
     return Dense(W, b, activation)
 end
 

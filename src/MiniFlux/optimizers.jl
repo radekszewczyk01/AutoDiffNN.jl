@@ -23,16 +23,30 @@ mutable struct Adam
         new(Dict(), Dict(), β1, β2, ϵ, 0)
     end
 end
-
 function (opt::Adam)(params::Vector{Variable}, lr)
     opt.t += 1
     for p in params
         g = p.gradient
+        # Convert gradient to match parameter size
         if size(g) != size(p.output)
-            g = sum(g, dims=2)
-            g = vec(g)
+            # If total elements match, reshape
+            if length(g) == length(p.output)
+                g = reshape(g, size(p.output))
+            # Handle vector/matrix conversion
+            elseif length(g) == length(p.output) && ndims(g) != ndims(p.output)
+                g = reshape(g, size(p.output))
+            # Handle (1,1) vs (1,) conversion
+            elseif prod(size(g)) == length(p.output)
+                g = reshape(g, size(p.output))
+            else
+                error("""
+                Gradient size $(size(g)) doesn't match parameter size $(size(p.output)) 
+                for parameter '$(p.name)'. Total elements: $(length(g)) vs $(length(p.output)).
+                """)
+            end
         end
-        @assert size(g) == size(p.output)
+        @assert size(g) == size(p.output) "Size mismatch: $(size(g)) != $(size(p.output)) for '$(p.name)'"
+        
         key = objectid(p)
         m = get!(opt.m, key, zero(g))
         v = get!(opt.v, key, zero(g))

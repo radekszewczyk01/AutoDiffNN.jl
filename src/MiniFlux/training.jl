@@ -1,3 +1,15 @@
+# After each layer, print tensor shapes
+function debug_model(model, x)
+    println("Input: ", size(x))
+    for (i, layer) in enumerate(model.layers)
+        x = layer(x)
+        println("Layer $i output: ", size(x.output))
+    end
+    return x
+end
+
+# Run debug before training
+
 function train!(model, loss_fn, train_data, val_data, opt, epochs::Int; lr=0.01)
 
     opt_fn = opt isa DataType ? opt() : opt
@@ -18,7 +30,23 @@ function train!(model, loss_fn, train_data, val_data, opt, epochs::Int; lr=0.01)
 
             graph = AD.topological_sort(loss)
             AD.forward!(graph)
+
             AD.backward!(graph)
+
+            # for (i, layer) in enumerate(model.layers)
+            #     if i==2 || i == 4 || i == 5
+            #         println("Layer $i output size: ", layer)
+            #         continue
+            #     end
+            #     if i==6
+            #         println("Layer $i output size: ", size(layer.W.output))
+            #         println("Layer $i gradient size: ", size(layer.W.gradient))
+            #         continue
+            #     end
+            #     println("Layer $i output size: ", size(layer.weight.output))
+            #     println("Layer $i gradient size: ", size(layer.weight.gradient))
+            # end
+
             opt_fn(model.params, lr)
 
             total_loss += loss.output

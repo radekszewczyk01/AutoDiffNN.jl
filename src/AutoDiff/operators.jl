@@ -27,7 +27,22 @@ backward(::BroadcastedOperator{typeof(-)}, x, y, g) = tuple(g, -g)
 
 broadcasted(+, x::GraphNode, y::GraphNode) = BroadcastedOperator(+, x, y)
 forward(::BroadcastedOperator{typeof(+)}, x, y) = x .+ y
-backward(::BroadcastedOperator{typeof(+)}, x, y, g) = tuple(g, g)
+function backward(node::BroadcastedOperator{typeof(+)}, x, y, g)
+    # Handle convolution bias cases
+    if ndims(y) == 3 && size(y, 1) == 1 && size(y, 3) == 1
+        # 1D convolution: sum over height and batch dims
+        ∇b = sum(g, dims=(1, 3))
+        return (g, ∇b)
+    elseif ndims(y) == 2 && size(y, 2) == 1
+        # Dense layer bias: column vector (out_dim, 1)
+        ∇b = sum(g, dims=2)
+        return (g, ∇b)
+    else
+        # General addition case
+        return (g, g)
+    end
+end
+
 
 broadcasted(/, x::GraphNode, y::GraphNode) = BroadcastedOperator(/, x, y)
 forward(::BroadcastedOperator{typeof(/)}, x, y) = x ./ y
