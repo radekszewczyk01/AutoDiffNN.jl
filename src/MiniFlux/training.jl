@@ -15,19 +15,16 @@ function train_with_optimisers!(
     loss_fn::Function,
     train_data::AbstractVector,
     val_data::AbstractVector,
-    opt_rule, # Np. Optimisers.Adam(0.001)
+    opt_rule,
     epochs::Int
 )
-    println("<<<<< Entered train_with_optimisers! function >>>>>"); flush(stdout)
-    
-    # Przygotowanie stanu optymalizatora
-    # Zbieramy 'surowe' tablice parametrów, które będą aktualizowane
-    # To jest ważne, bo Optimisers.update zwróci nowe tablice, które musimy skopiować z powrotem
+
     initial_trainable_params_arrays = [p.output for p in model.params]
     opt_state = Optimisers.setup(opt_rule, initial_trainable_params_arrays)
-    println("train_with_optimisers!: Optimizer state created."); flush(stdout)
 
     num_train_batches = length(train_data)
+
+    println("\nStarting training...\n"); flush(stdout)
 
     for epoch in 1:epochs
         epoch_time_start = time()
@@ -35,44 +32,35 @@ function train_with_optimisers!(
         
         total_loss_epoch = 0.0
         total_samples_epoch = 0
-        
-        # Bieżące tablice parametrów do aktualizacji przez Optimisers.jl
-        # Zaczynamy od tych z modelu, aktualizujemy je co batch
+
         current_trainable_params_arrays = [p.output for p in model.params]
 
 
         for (batch_idx, (x_val, y_val)) in enumerate(train_data)
             batch_time_start = time()
-            
-            # 1. Resetowanie gradientów
+
             for p in model.params
-                # Bezpieczniejsze resetowanie, aby uniknąć problemów z typami lub `nothing`
                 p.gradient = fill!(similar(p.output), 0) 
             end
 
-            # 2. Forward i Backward pass (Twoja logika AutoDiff)
             x_node = AD.Variable(x_val, name="x")
             y_node = AD.Variable(y_val, name="y")
-            ŷ_node = model(x_node) # Definicja grafu
-            loss_node = loss_fn(y_node, ŷ_node) # Definicja grafu
+            ŷ_node = model(x_node)
+            loss_node = loss_fn(y_node, ŷ_node)
             
             graph = AD.topological_sort(loss_node)
-            AD.forward!(graph)  # Obliczenia
-            AD.backward!(graph) # Obliczenia gradientów -> p.gradient są wypełnione
+            AD.forward!(graph)
+            AD.backward!(graph)
 
-            # 3. Przygotowanie gradientów dla Optimisers.jl
-            # grads_arrays powinien mieć taką samą strukturę jak current_trainable_params_arrays
             grads_arrays = Vector{Any}(undef, length(model.params))
             for i in 1:length(model.params)
                 p_var = model.params[i]
                 if p_var.gradient === nothing
-                    # To nie powinno się zdarzyć, jeśli backward! działa poprawnie
+
                     println("Warning: Gradient for param $(p_var.name) is nothing in batch $batch_idx, epoch $epoch.")
                     grads_arrays[i] = zeros(eltype(p_var.output), size(p_var.output))
                 elseif size(p_var.gradient) != size(p_var.output)
-                    # Jeśli kształty się nie zgadzają, próbujemy to naprawić lub rzucamy błąd
-                    # Tutaj można dodać bardziej zaawansowaną logikę dopasowywania, jeśli jest potrzebna
-                    # Na razie, dla bezpieczeństwa, logujemy i używamy zer, aby uniknąć błędu w Optimisers
+
                     println("Warning: Shape mismatch for param $(p_var.name). Param: $(size(p_var.output)), Grad: $(size(p_var.gradient)). Using zeros for this grad.")
                     grads_arrays[i] = zeros(eltype(p_var.output), size(p_var.output))
                 else
@@ -80,44 +68,36 @@ function train_with_optimisers!(
                 end
             end
             
-            # 4. Aktualizacja parametrów za pomocą Optimisers.jl
-            # Optimisers.update zwraca (nowy_stan, nowe_parametry_jako_tablice)
             new_opt_state, updated_params_arrays = Optimisers.update(opt_state, current_trainable_params_arrays, grads_arrays)
-            
-            # 5. Skopiowanie zaktualizowanych parametrów z powrotem do AD.Variable i przygotowanie na następny krok
+
             for (i, p_var) in enumerate(model.params)
                 p_var.output .= updated_params_arrays[i]
-                current_trainable_params_arrays[i] = updated_params_arrays[i] # Ważne dla następnego wywołania Optimisers.update
+                current_trainable_params_arrays[i] = updated_params_arrays[i]
             end
-            opt_state = new_opt_state # Zapisz nowy stan optymalizatora
+            opt_state = new_opt_state
 
-            # Akumulacja statystyk
             batch_loss = loss_node.output
             total_loss_epoch += batch_loss
-            total_samples_epoch += size(y_val, 2) # Zakładając, że drugi wymiar y_val to rozmiar batcha
+            total_samples_epoch += size(y_val, 2)
 
             batch_time_end = time()
             batch_duration = batch_time_end - batch_time_start
 
-            # Logowanie postępu co określoną liczbę batchy lub na końcu
-            # np. co 10% batchy lub co 50 batchy
             print_interval = max(1, div(num_train_batches, 10))
             if batch_idx % print_interval == 0 || batch_idx == num_train_batches
                 @printf("Epoch %d, Batch %d/%d: Loss: %.4f, Time/Batch: %.3fs\n",
                         epoch, batch_idx, num_train_batches, batch_loss / size(y_val,2), batch_duration)
                 flush(stdout)
             end
-        end # Koniec pętli po batchach
+        end
 
         epoch_time_end = time()
         epoch_duration = epoch_time_end - epoch_time_start
         avg_batch_time = epoch_duration / num_train_batches
         avg_loss_epoch = total_loss_epoch / total_samples_epoch
 
-        # Ewaluacja na zbiorze walidacyjnym i treningowym (agregowanym)
         println("Epoch $epoch: Calculating accuracies..."); flush(stdout)
-        # Zbieranie danych do ewaluacji (może być kosztowne, jeśli zbiory są duże)
-        # Można to robić rzadziej lub na mniejszej próbce.
+
         X_train_agg = hcat([b[1] for b in train_data]...); Y_train_agg = hcat([b[2] for b in train_data]...)
         train_acc = accuracy(model, X_train_agg, Y_train_agg)
         
@@ -128,7 +108,7 @@ function train_with_optimisers!(
                 epoch, avg_loss_epoch, train_acc*100, val_acc*100, epoch_duration, avg_batch_time)
         println("====================================="); flush(stdout)
 
-    end # Koniec pętli po epokach
+    end
     println("<<<<< train_with_optimisers! function finished >>>>>"); flush(stdout)
 end
 
@@ -146,7 +126,6 @@ function create_batches(X, y, batchsize)
 end
 
 function accuracy(model, X::AbstractMatrix, Y::AbstractMatrix)
-    # forward
     x_var   = AD.Variable(X, name="x")
     y_pred  = model(x_var)
     AD.forward!(AD.topological_sort(y_pred))
