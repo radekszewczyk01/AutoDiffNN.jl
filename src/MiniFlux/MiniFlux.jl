@@ -3,27 +3,18 @@ module MiniFlux
 using LinearAlgebra
 
 using ..AutoDiff
+using Optimisers
+using Printf
 const AD = AutoDiff
 
 include("layers.jl")
-include("conv_layers.jl")
 include("losses.jl")
 include("optimizers.jl")
 include("training.jl")
 
-export Dense, Conv2D, MaxPool2D, Flatten, mse_loss, sgd!, train!, Model, relu, swish, linear
+export  Dense, mse_loss, sgd!, train!, Model, relu, swish, linear, layer_vars, create_batches, 
+        Model, train!, binary_cross_entropy_loss, categorical_cross_entropy, softmax, Adam,
+        accuracy, Embedding, Permute, Conv1D, MaxPool1D, Flatten
 
-struct Model
-    layers::Vector
-    params::Vector{AD.Variable}
-end
-
-function (m::Model)(x)
-    a = x
-    for layer in m.layers
-        a = layer(a)
-    end
-    return a
-end
 
 end 
