@@ -1,15 +1,3 @@
-# W MiniFlux/training.jl
-
-# Upewnij się, że Optimisers jest dostępne w tym pliku, jeśli nie jest w głównym module
-# Jeśli MiniFlux jest modułem, możesz potrzebować:
-# using Optimisers # Jeśli Optimisers jest w głównym środowisku
-# lub jeśli training.jl jest częścią modułu, który re-eksportuje Optimisers
-# Jeśli nie, dodaj `using Optimisers` na początku pliku training.jl
-# W MiniFlux/training.jl
-# Upewnij się, że masz `using Optimisers` i `using Printf` (dla @sprintf) na początku pliku,
-# jeśli nie są one globalnie dostępne z modułu MiniFlux.
-# using Printf # Jeśli jeszcze nie ma
-
 function train_with_optimisers!(
     model::Model,
     loss_fn::Function,

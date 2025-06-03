@@ -55,8 +55,6 @@ mutable struct PermuteDimsOp <: Operator
     dims_order::Tuple
     inv_dims_order::Tuple
     function PermuteDimsOp(x_node::GraphNode, dims_order::Tuple; name="permutedims")
-        # ido =- map(x -> findfirst(==(x), dims_order), 1:length(dims_order)) # szybka invperm
-        # # lub:
         inv_order = Vector{Int}(undef, length(dims_order))
         for (i, val) in enumerate(dims_order)
             inv_order[val] = i
@@ -71,9 +69,9 @@ mutable struct ReshapeOp <: Operator
     output::Any
     gradient::Any
     name::String
-    target_shape_dims::Union{Tuple, Nothing} # Może być NTuple{N, Int} lub Int...
+    target_shape_dims::Union{Tuple, Nothing}
     original_shape_cache::Any
-    function ReshapeOp(x_node::GraphNode, target_shape_dims...; name="reshape") # akceptuje (Int,Int) lub Int,Int...
+    function ReshapeOp(x_node::GraphNode, target_shape_dims...; name="reshape")
         new((x_node,), nothing, nothing, name, tuple(target_shape_dims...), nothing)
     end
 end

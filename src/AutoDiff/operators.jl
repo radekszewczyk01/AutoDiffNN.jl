@@ -251,13 +251,12 @@ Base.show(io::IO, x::ReshapeOp) = print(io, "op Reshape($(x.target_shape_dims))"
 
 function forward(op::FlattenOp, x_val)
     op.original_shape_cache = size(x_val)
-    if ndims(x_val) == 1 # Już jest "płaski" (wektor)
-        return reshape(x_val, (length(x_val), 1)) # Zawsze zwracaj (features, 1) dla pojedynczego przykładu
-    elseif ndims(x_val) == 2 && size(x_val,2)==1 # Już (features,1)
+    if ndims(x_val) == 1
+        return reshape(x_val, (length(x_val), 1))
+    elseif ndims(x_val) == 2 && size(x_val,2)==1
         return x_val
     end
-
-    # Zakładamy, że ostatni wymiar to batch_size
+    
     batch_size = size(x_val)[end]
     num_features = div(length(x_val), batch_size)
     return reshape(x_val, (num_features, batch_size))
