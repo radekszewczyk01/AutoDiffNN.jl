@@ -3,6 +3,8 @@ module MiniFlux
 using LinearAlgebra
 
 using ..AutoDiff
+using Optimisers
+using Printf
 const AD = AutoDiff
 
 include("layers.jl")
@@ -12,7 +14,7 @@ include("training.jl")
 
 export  Dense, mse_loss, sgd!, train!, Model, relu, swish, linear, layer_vars, create_batches, 
         Model, train!, binary_cross_entropy_loss, categorical_cross_entropy, softmax, Adam,
-        accuracy
+        accuracy, Embedding, Permute, Conv1D, MaxPool1D, Flatten
 
 
 end 
