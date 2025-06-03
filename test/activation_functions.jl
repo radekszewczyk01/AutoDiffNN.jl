@@ -1,7 +1,7 @@
 using Test
 using myExample
 using Random
-
+using NNlib
 const AD = myExample.AutoDiff
 const MF = myExample.MiniFlux
 

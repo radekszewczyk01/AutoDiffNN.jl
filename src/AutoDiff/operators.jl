@@ -202,18 +202,14 @@ forward(::BroadcastedOperator{typeof(softmax)}, x_val) = begin
     sum_exp_x = sum(exp_x; dims=1)
     return exp_x ./ sum_exp_x
 end
-backward(::BroadcastedOperator{typeof(softmax)}, x_val, g) = begin
-    # y to wynik softmax(x_val)
-    y = node.output # Używamy zapamiętanego wyjścia
-    # g ma ten sam kształt co y
-    # Wzór: (diag(y) - y*y') * g (dla wektora)
-    # Dla macierzy (N, Batch), gdzie operacje są kolumnowe:
-    # s = sum(g .* y; dims=1) # dla każdej kolumny (batch_idx): sum_{i} (g_i * y_i)
-    # grad_x_col = y_col .* (g_col .- s_col)
+backward(actual_node_object::BroadcastedOperator{typeof(softmax)}, x_val_from_fwd, g) = begin
+    # println("Backward for softmax, typeof(g)=$(typeof(g)), typeof(x_val_from_fwd)=$(typeof(x_val_from_fwd))"); flush(stdout)
+    y = actual_node_object.output # Użyj nazwanego argumentu
+    # println("Backward for softmax, typeof(y=node.output)=$(typeof(y))"); flush(stdout)
     s = sum(g .* y; dims=1)
     grad_x = y .* (g .- s)
-    # Kształt grad_x jest już taki sam jak x_val, unbroadcast nie jest tu potrzebny.
-    return (grad_x,)
+    # println("Backward for softmax, typeof(grad_x)=$(typeof(grad_x))"); flush(stdout)
+    return (grad_x,) # Zwracamy krotkę, bo softmax jest unarny
 end
 
 mutable struct EmbeddingOp <: Operator
