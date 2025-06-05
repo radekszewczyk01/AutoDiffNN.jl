@@ -8,6 +8,7 @@ using NNlib
 include("models.jl")
 include("operators.jl")
 include("functions.jl")
+include("my_conv_functions.jl")
 
 
 export GraphNode, Operator, Constant, Variable, ScalarOperator,

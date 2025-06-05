@@ -129,7 +129,7 @@ Random.seed!(123)
         @test eltype(data_node.gradient) == Float32
     end
 
-    @testset "AD.Conv1DOp and MF.Conv1D Layer (with NNlib)" begin
+    @testset "AD.Conv1DOp and MF.Conv1D Layer" begin
         W_in, C_in, B = 10, 3, 2  # Szerokość, Kanały wej, Batch
         KW, C_out = 3, 5          # Szerokość Kernela, Kanały wyj
         
@@ -193,7 +193,7 @@ Random.seed!(123)
         end
     end
 
-    @testset "AD.MaxPool1DOp and MF.MaxPool1D Layer (with NNlib)" begin
+    @testset "AD.MaxPool1DOp and MF.MaxPool1D Layer" begin
         W_in, C, B = 20, 3, 2
         pool_size = (4,)
         

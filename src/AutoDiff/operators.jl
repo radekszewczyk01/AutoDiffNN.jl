@@ -272,9 +272,11 @@ function forward(op::Conv1DOp, X_val::AbstractArray{T,3}, K_val::AbstractArray{T
     op.X_val_cache = X_val
     op.K_val_cache = K_val
 
-    cdims = DenseConvDims(X_val, K_val; stride=1, padding=0, dilation=1)
+    # cdims = DenseConvDims(X_val, K_val; stride=1, padding=0, dilation=1)
     
-    return NNlib.conv(X_val, K_val, cdims)
+    # return NNlib.conv(X_val, K_val, cdims)
+    
+    return my_conv(X_val, K_val, stride=1, padding=0)
 end
 function backward(op::Conv1DOp, X_val_z_fwd::AbstractArray{Tx,3}, K_val_z_fwd::AbstractArray{Tk,3}, g_incoming::AbstractArray{Tg,3}) where {Tx, Tk, Tg}
     
@@ -286,9 +288,12 @@ function backward(op::Conv1DOp, X_val_z_fwd::AbstractArray{Tx,3}, K_val_z_fwd::A
         G_val_f32 = convert(Array{Float32,3}, g_incoming)
     end
 
-    cdims = DenseConvDims(X_val_f32, K_val_f32; stride=1, padding=0, dilation=1)
-    dX = NNlib.∇conv_data(G_val_f32, K_val_f32, cdims)
-    dK = NNlib.∇conv_filter(X_val_f32, G_val_f32, cdims)
+    # cdims = DenseConvDims(X_val_f32, K_val_f32; stride=1, padding=0, dilation=1)
+    # dX = NNlib.∇conv_data(G_val_f32, K_val_f32, cdims)
+    # dK = NNlib.∇conv_filter(X_val_f32, G_val_f32, cdims)
+
+    dX = ∇my_conv_data(G_val_f32, K_val_f32, X_shape=size(X_val_f32), stride=1, padding=0)
+    dK = ∇my_conv_filter(X_val_f32, G_val_f32, K_shape=size(K_val_f32), stride=1, padding=0)
 
     return (dX, dK)
 end
@@ -299,9 +304,11 @@ function forward(op::MaxPool1DOp, X_val::AbstractArray{T,3}) where T
 
     pool_width = op.pool_size[1]
     
-    pdims = NNlib.PoolDims(X_val, (pool_width,); stride=(pool_width,), padding=(0,))
-    
-    Y = NNlib.maxpool(X_val, pdims)
+    # pdims = NNlib.PoolDims(X_val, (pool_width,); stride=(pool_width,), padding=(0,))
+    # Y = NNlib.maxpool(X_val, pdims)
+
+    Y = my_maxpool(X_val, pool_width, pool_width)
+
     op.Y_val_cache = Y 
     return Y
 end
@@ -316,9 +323,11 @@ function backward(op::MaxPool1DOp, x_val_z_forward::AbstractArray{Tx,3}, g_incom
     end
 
     pool_width = op.pool_size[1]
-    pdims = NNlib.PoolDims(X_val_f32, (pool_width,); stride=(pool_width,), padding=(0,))
-    
-    dX = NNlib.∇maxpool(G_val_f32, Y_val_f32, X_val_f32, pdims)
-    
+
+    # pdims = NNlib.PoolDims(X_val_f32, (pool_width,); stride=(pool_width,), padding=(0,))
+    # dX = NNlib.∇maxpool(G_val_f32, Y_val_f32, X_val_f32, pdims)
+
+    dX = ∇my_maxpool(G_val_f32, Y_val_f32, X_val_f32, pool_width, pool_width)
+
     return (dX,)
 end
